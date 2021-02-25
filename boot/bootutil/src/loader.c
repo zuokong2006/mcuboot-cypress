@@ -865,9 +865,16 @@ boot_copy_region(struct boot_loader_state *state,
         }
 #endif
 
-        rc = flash_area_write(fap_dst, off_dst + bytes_copied, buf, chunk_sz);
-        if (rc != 0) {
-            return BOOT_EFLASH;
+        if(fap_dst->fa_device_id == FLASH_DEVICE_INTERNAL_FLASH) {
+            rc = flash_area_program(fap_dst, off_dst + bytes_copied, buf, chunk_sz);
+            if (rc != 0) {
+                return BOOT_EFLASH;
+            }
+        } else {
+            rc = flash_area_write(fap_dst, off_dst + bytes_copied, buf, chunk_sz);
+            if (rc != 0) {
+                return BOOT_EFLASH;
+            }
         }
 
         bytes_copied += chunk_sz;
@@ -933,6 +940,7 @@ boot_copy_image(struct boot_loader_state *state, struct boot_status *bs)
             &fap_secondary_slot);
     assert (rc == 0);
 
+#if 0
     sect_count = boot_img_num_sectors(state, BOOT_PRIMARY_SLOT);
     for (sect = 0, size = 0; sect < sect_count; sect++) {
         this_size = boot_img_sector_size(state, BOOT_PRIMARY_SLOT, sect);
@@ -949,6 +957,13 @@ boot_copy_image(struct boot_loader_state *state, struct boot_status *bs)
 
         size += this_size;
     }
+#else
+    if (fap_primary_slot->fa_device_id == FLASH_DEVICE_INTERNAL_FLASH) {
+        rc = boot_erase_region(fap_primary_slot, 0, fap_primary_slot->fa_size);
+        assert(rc == 0);
+        size = fap_primary_slot->fa_size;
+    }
+#endif
 
 #if defined(MCUBOOT_OVERWRITE_ONLY_FAST)
     trailer_sz = boot_trailer_sz(BOOT_WRITE_SZ(state));
@@ -979,7 +994,7 @@ boot_copy_image(struct boot_loader_state *state, struct boot_status *bs)
     }
 #endif
 
-    BOOT_LOG_INF("Copying the secondary slot to the primary slot: 0x%zx bytes",
+    BOOT_LOG_INF("Copying the secondary slot to the primary slot: 0x%x bytes",
                  size);
     rc = boot_copy_region(state, fap_secondary_slot, fap_primary_slot, 0, 0, size);
     if (rc != 0) {

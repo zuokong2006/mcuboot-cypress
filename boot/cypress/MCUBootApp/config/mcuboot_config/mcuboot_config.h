@@ -35,10 +35,12 @@
 //#define MCUBOOT_SIGN_RSA
 
 /* Uncomment for ECDSA signatures using curve P-256. */
-#define MCUBOOT_SIGN_EC256
-#define NUM_ECC_BYTES (256 / 8) // P-256 curve size in bytes, rnok: to make compilable
+//#define MCUBOOT_SIGN_EC256
+//#define NUM_ECC_BYTES (256 / 8) // P-256 curve size in bytes, rnok: to make compilable
 
 // #define MCUBOOT_SIGN_EC
+
+#define MCUBOOT_OVERWRITE_ONLY
 
 /*
  * Upgrade mode
@@ -77,7 +79,7 @@
  * even if no upgrade was performed. This is recommended if the boot
  * time penalty is acceptable.
  */
-#define MCUBOOT_VALIDATE_PRIMARY_SLOT
+//#define MCUBOOT_VALIDATE_PRIMARY_SLOT
 
 /*
  * Flash abstraction

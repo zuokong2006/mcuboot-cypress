@@ -366,6 +366,53 @@ int flash_area_write(const struct flash_area *fa, uint32_t off,
     return (int) rc;
 }
 
+/*
+* Writes `len` bytes of flash memory at `off` from the buffer at `src`
+* Cy_Flash_ProgramRow to implement
+ */
+int flash_area_program(const struct flash_area *fa, uint32_t off,
+                      const void *src, uint32_t len)
+{
+    cy_en_flashdrv_status_t rc = CY_FLASH_DRV_SUCCESS;
+    size_t write_start_addr;
+    size_t write_end_addr;
+    const uint32_t * row_ptr = NULL;
+
+    assert(off < fa->fa_off);
+    assert(off + len < fa->fa_off);
+
+    /* convert to absolute address inside a device */
+    write_start_addr = fa->fa_off + off;
+    write_end_addr = fa->fa_off + off + len;
+
+    if (fa->fa_device_id == FLASH_DEVICE_INTERNAL_FLASH)
+    {
+        uint32_t row_number;
+        uint32_t row_addr;
+
+        assert(!(len % CY_FLASH_SIZEOF_ROW));
+        assert(!(write_start_addr % CY_FLASH_SIZEOF_ROW));
+
+        row_number = (write_end_addr - write_start_addr) / CY_FLASH_SIZEOF_ROW;
+        row_addr = write_start_addr;
+
+        row_ptr = (uint32_t *) src;
+
+        for (uint32_t i = 0; i < row_number; i++)
+        {
+            rc = Cy_Flash_ProgramRow(row_addr, row_ptr);
+            assert(rc == CY_FLASH_DRV_SUCCESS);
+            row_addr += (uint32_t) CY_FLASH_SIZEOF_ROW;
+            row_ptr = row_ptr + CY_FLASH_SIZEOF_ROW / 4;
+        }
+    } else {
+        /* incorrect/non-existing flash device id */
+        rc = -1;
+    }
+
+    return (int) rc;
+}
+
 /*< Erases `len` bytes of flash memory at `off` */
 int flash_area_erase(const struct flash_area *fa, uint32_t off, uint32_t len)
 {
@@ -393,6 +440,7 @@ int flash_area_erase(const struct flash_area *fa, uint32_t off, uint32_t len)
         if (row_start_addr == row_end_addr) {
             rc = Cy_Flash_EraseRow(row_start_addr);
         } else {
+#if 0
             row_number = (row_end_addr - row_start_addr) / CY_FLASH_SIZEOF_ROW;
 
             while (row_number != 0)
@@ -402,6 +450,26 @@ int flash_area_erase(const struct flash_area *fa, uint32_t off, uint32_t len)
                 rc = Cy_Flash_EraseRow(row_addr);
                 assert(rc == CY_FLASH_DRV_SUCCESS);
             }
+#else
+            uint32_t remain_len = (0 != (len%CY_FLASH_SIZEOF_ROW)) ? (len/CY_FLASH_SIZEOF_ROW + 1) : (len/CY_FLASH_SIZEOF_ROW);
+            remain_len = remain_len * CY_FLASH_SIZEOF_ROW;
+            //printf("Start Erase flash=0x%x remain_len=%d\r\n", row_start_addr, remain_len);
+            while(remain_len != 0) {
+                if((0 == (row_start_addr%0x40000)) && (remain_len >= 0x40000)) {
+                    rc = Cy_Flash_EraseSector(row_start_addr);
+                    assert(rc == CY_FLASH_DRV_SUCCESS);
+                    //printf("Erase sector addr=0x%x\r\n", row_start_addr);
+                    row_start_addr += 0x40000;
+                    remain_len -= 0x40000;
+                } else {
+                    rc = Cy_Flash_EraseRow(row_start_addr);
+                    assert(rc == CY_FLASH_DRV_SUCCESS);
+                    row_start_addr += CY_FLASH_SIZEOF_ROW;
+                    remain_len -= CY_FLASH_SIZEOF_ROW;
+                }
+                //printf("Erase flash=0x%x remain_len=%d\r\n", row_start_addr, remain_len);
+            }
+#endif
         }
     }
 #ifdef CY_BOOT_USE_EXTERNAL_FLASH
@@ -608,7 +676,7 @@ int flash_area_get_sectors(int idx, uint32_t *cnt, struct flash_sector *ret)
 #ifdef MCUBOOT_SWAP_USING_STATUS
             sector_size = qspi_get_erase_size();
 #else
-            sector_size = CY_FLASH_SIZEOF_ROW;
+            sector_size = 0x40000; //CY_FLASH_SIZEOF_ROW;
 #endif /* MCUBOOT_SWAP_USING_STATUS */
         }
 #endif /* CY_BOOT_USE_EXTERNAL_FLASH */
